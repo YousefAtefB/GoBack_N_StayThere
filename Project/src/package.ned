@@ -1,3 +1,25 @@
 package project;
 
+import src.Coordinator;
+import src.Node;
+
+
 @license(LGPL);
+//
+// TODO documentation
+//
+network Network
+{
+    @display("bgb=757,455");
+    submodules:
+        coordinator: Coordinator {
+            @display("p=365,256");
+        }
+        node1: Node {
+            @display("p=472,145");
+        }
+        node0: Node {
+            @display("p=236,145");
+        }
+}
+
