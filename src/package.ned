@@ -1,9 +1,5 @@
 package project;
 
-import src.Coordinator;
-import src.Node;
-
-
 @license(LGPL);
 //
 // TODO documentation

@@ -13,7 +13,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-package src;
+package project;
 
 //
 // TODO auto-generated module
