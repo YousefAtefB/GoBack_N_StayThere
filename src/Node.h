@@ -26,6 +26,8 @@ using namespace omnetpp;
 class Node : public cSimpleModule
 {
   protected:
+    bool Sender;
+    simtime_t StartingTime;
     virtual void initialize();
     virtual void handleMessage(cMessage *msg);
 };

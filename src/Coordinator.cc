@@ -14,12 +14,24 @@
 // 
 
 #include "Coordinator.h"
+#include <fstream>
+using namespace std;
 
 Define_Module(Coordinator);
 
 void Coordinator::initialize()
 {
     // TODO - Generated method body
+    ifstream input("coordinator.txt");
+    int NodeId;
+    double StartingTime;
+    input>>NodeId>>StartingTime;
+    cMessage* ToSender=new cMessage("Sender");
+    ToSender->setTimestamp(StartingTime);
+    cMessage* ToReceiver=new cMessage("Receiver");
+
+    send(ToSender,NodeId==0?"out0":"out1");
+    send(ToReceiver,NodeId==1?"out0":"out1");
 }
 
 void Coordinator::handleMessage(cMessage *msg)

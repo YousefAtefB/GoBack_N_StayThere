@@ -14,6 +14,8 @@
 // 
 
 #include "Node.h"
+#include <string>
+using namespace std;
 
 Define_Module(Node);
 
@@ -25,4 +27,22 @@ void Node::initialize()
 void Node::handleMessage(cMessage *msg)
 {
     // TODO - Generated method body
+    if(string(msg->getName())=="Sender")
+    {
+        Sender=true;
+        StartingTime=msg->getTimestamp();
+    }
+
+    if(string(msg->getName())=="Receiver")
+    {
+        Sender=false;
+    }
+
+    // if(Sender==true)
+    // {
+    //     ifstream input(string(getName())=="node0"?"input0.txt":"input1.txt");
+
+    // }
+
+    EV<<Sender<<" "<<StartingTime<<endl;
 }
