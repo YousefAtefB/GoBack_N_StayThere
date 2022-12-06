@@ -20,4 +20,8 @@ package src;
 //
 simple Node
 {
+    gates:
+    	input coordinator;
+    	input in;
+    	output out;
 }

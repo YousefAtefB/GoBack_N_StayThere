@@ -20,4 +20,7 @@ package src;
 //
 simple Coordinator
 {
+    gates:
+        output out0;
+        output out1;
 }
