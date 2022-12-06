@@ -97,8 +97,13 @@ void Node::handleMessage(cMessage *msg)
         //get seqnum of the ACK
         int seqnum=atoi(string(msg->getName()).substr(4).c_str());
         //shift SF & SL
-        SF=seqnum;
-        SL=SF+par("WS").intValue()-1;
+        //0 1 2 3 4 5
+        //0 1 2 3 4 5 0 1 2 3 4  5
+        //0 1 2 3 4 5 6 7 8 9 10 11
+        int WS=par("WS").intValue();
+        int shift=(seqnum-SF+WS+1)%(WS+1);
+        SF+=shift;
+        SL+=shift;
     }
     else if(Sender==false)//TODO: send ACK
     {
