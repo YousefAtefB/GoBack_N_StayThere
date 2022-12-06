@@ -20,6 +20,14 @@ package project;
 //
 simple Node
 {
+    parameters:
+        int WS;
+        double TO;
+        double PT;
+        double TD;
+        double ED;
+        double DD;
+        double LP;
     gates:
     	input coordinator;
     	input in;

@@ -17,6 +17,10 @@
 #define __PROJECT_NODE_H_
 
 #include <omnetpp.h>
+#include <vector>
+#include <string>
+#include <fstream>
+using namespace std;
 
 using namespace omnetpp;
 
@@ -27,7 +31,9 @@ class Node : public cSimpleModule
 {
   protected:
     bool Sender;
-    simtime_t StartingTime;
+    int SF,S,SL;
+    vector<string>Frames;
+    virtual void SendFrame();
     virtual void initialize();
     virtual void handleMessage(cMessage *msg);
 };
