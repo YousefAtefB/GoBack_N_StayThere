@@ -62,42 +62,69 @@ void Node::handleMessage(cMessage *msg)
         Sender=true;
         string FileName=string(getName())=="node0"?"input0.txt":"input1.txt";
         ifstream input(FileName);
-        S=0,SF=0,SL=par("WS").intValue();
+        S=0,SF=0,SL=par("WS").intValue()-1;
         string str;
         while(getline(input,str))
             Frames.push_back(str);
         scheduleAt(msg->getTimestamp(),new cMessage(""));
     }
-
-    if(string(msg->getName())=="Receiver")
+    else if(string(msg->getName())=="Receiver")
     {
         Sender=false;
+        R=0;
     }
-
-    if(msg->isSelfMessage())
+    else if(msg->isSelfMessage())
     {
+        //window is not finished
         if(S<=SL&&S<Frames.size())
         {
             SendFrame();
             S++;
         }
 
+        //if we sent the whole window
         if(S>SL)
         {
             S=SF;
             //Timeout
         }
+        //schedule for the next frame to send after processing time
         scheduleAt(simTime()+par("PT"),new cMessage(""));
+    }
+    else if(Sender==true)//TODO: handle ACK & NACK
+    {
+        if(string(msg)=="NACK")return;
+        //get seqnum of the ACK
+        int seqnum=atoi(string(msg->getName()).substr(4).c_str());
+        //shift SF & SL
+        SF=seqnum;
+        SL=SF+par("WS").intValue()-1;
+    }
+    else if(Sender==false)//TODO: send ACK
+    {
+        //TODO: if error dedicted send NACK
+        int rand=uniform(0,1)*100;
+        //Loss probability
+        if(rand<100-par("LP").intValue())
+        {
+            //Expected Frame
+            if(R==atoi(msg->getName()))//seqnum
+            {
+                R=(R+1)%(par("WS").intValue()+1);
+                send(new cMessage("ACK "+to_string(R)),"out");
+            }
+            else
+            {
+                //Unexpected Frame
+                send(new cMessage("NACK"),"out");
+            }
+        }
     }
 
     if(Sender==false)
     {
         EV<<simTime()<<" "<<msg->getName()<<endl;
     }
-
-    //TODO: handle ACK & NACK
-
-
 
 //    EV<<getName()<<" "<<par("PT").doubleValue()<<endl;
 //    EV<<Sender<<" "<<StartingTime<<endl;

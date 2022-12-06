@@ -27,7 +27,7 @@ simple Node
         double TD;
         double ED;
         double DD;
-        double LP;
+        int LP;
     gates:
     	input coordinator;
     	input in;

@@ -32,6 +32,7 @@ class Node : public cSimpleModule
   protected:
     bool Sender;
     int SF,S,SL;
+    int R;
     vector<string>Frames;
     virtual void SendFrame();
     virtual void initialize();
