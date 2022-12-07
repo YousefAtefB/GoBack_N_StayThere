@@ -103,6 +103,7 @@ void Node::handleMessage(cMessage *msg)
         {
             //we send the frame with error if its the start of the session
             //or if it is a timer but not the frame that caused timing out
+            //I THINK THAT SF IS THE ONE THAT WILL ALWAYS CAUSE THE TIMEOUT
             SendFrame(StartSession==true || S!=SF);
             //refresh the timer by increasing its number
             TimerNumber[S]++;
