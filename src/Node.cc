@@ -70,7 +70,7 @@ void Node::handleMessage(cMessage *msg)
         while(getline(input,str))
             Frames.push_back(str);
         //TimerNumber keeps track of the timer for each frame in order to ignore Timeouts when we refresh the timers
-        TimerNumber=vector<int>(frames.size(),0);
+        TimerNumber=vector<int>(Frames.size(),0);
         //schedule the starting message
         scheduleAt(msg->getTimestamp(),new cMessage("Start Session"));
     }
@@ -116,7 +116,7 @@ void Node::handleMessage(cMessage *msg)
     }
     else if(Sender==true)//handle ACK & NACK from sender
     {
-        if(string(msg)=="NACK")return;
+        if(string(msg->getName())=="NACK")return;
         //get seqnum of the ACK
         int seqnum=atoi(string(msg->getName()).substr(4).c_str());
         //shift SF & SL
@@ -141,7 +141,7 @@ void Node::handleMessage(cMessage *msg)
             if(R==atoi(msg->getName()))//seqnum
             {
                 R=(R+1)%(par("WS").intValue()+1);
-                sendDelayed(new cMessage("ACK "+to_string(R)),ArrivalTime,"out");
+                sendDelayed(new cMessage(("ACK "+to_string(R)).c_str()),ArrivalTime,"out");
             }
             else
             {
