@@ -33,6 +33,7 @@ class Node : public cSimpleModule
     bool Sender;
     int SF,S,SL;
     int R;
+    vector<int>TimerNumber;
     vector<string>Frames;
     virtual void SendFrame();
     virtual void initialize();
