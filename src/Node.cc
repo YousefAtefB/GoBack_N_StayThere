@@ -20,6 +20,7 @@ Define_Module(Node);
 void Node::initialize()
 {
     // TODO - Generated method body
+
 }
 
 string byte_stuffing(string str )
@@ -75,6 +76,12 @@ string get_from_byte_stuffing(string  str )
 
 void Node::SendFrame(bool WithError)
 {
+    //-------------LOG
+//    ofstream output("output.txt",ios_base::app);
+//    output<<"At time "<<simTime()<<
+    //-------------LOG
+
+
     string ErrorCode=ErrorCodes[S];
     Frame_Base* Frame=new Frame_Base(*Frames[S]);
 
@@ -155,6 +162,11 @@ void Node::CreateFrames()
         Frames.push_back(Frame);
         cnt=(cnt+1)%(par("WS").intValue()+1);
     }
+}
+
+void SenderLog()
+{
+
 }
 
 void Node::handleMessage(cMessage *msg)

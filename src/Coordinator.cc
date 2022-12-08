@@ -21,6 +21,10 @@ Define_Module(Coordinator);
 
 void Coordinator::initialize()
 {
+    //to delete the log
+    ofstream temp("output.txt");
+
+
     // TODO - Generated method body
     ifstream input("coordinator.txt");
     int NodeId;
