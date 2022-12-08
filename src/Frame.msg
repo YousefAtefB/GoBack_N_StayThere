@@ -13,36 +13,14 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef __PROJECT_NODE_H_
-#define __PROJECT_NODE_H_
-
-#include <omnetpp.h>
-#include <vector>
-#include <string>
-#include <fstream>
-#include <bitset>
-#include <Frame_m.h>
-using namespace std;
-
-using namespace omnetpp;
-
-/**
- * TODO - Generated class
- */
-class Node : public cSimpleModule
-{
-  protected:
-    bool Sender;
-    int SF,S,SL;
-    int R;
-    vector<int>TimerNumber;
-    vector<Frame_Base*>Frames;
-    vector<string>ErrorCodes;
-    void Node::CreateFrames();
-    virtual void SendWindow(bool WithError);
-    virtual void SendFrame(bool WithError);
-    virtual void initialize();
-    virtual void handleMessage(cMessage *msg);
-};
-
-#endif
+//
+// TODO generated message class
+//
+packet Frame {
+    @customize(true);  // see the generated C++ header for more info
+    int seq_num ;
+    int frame_type ; // 0 data , 1 ack , 2 nack 
+    int ack_num ;   // 0 -> 1 -> 2 -> 
+    string payload; // message  
+    char parity_byte ; // check 
+}

@@ -22,10 +22,61 @@ void Node::initialize()
     // TODO - Generated method body
 }
 
+string byte_stuffing(string str )
+{
+    int i = 0 ;
+    while(i< str.size()){
+         if(str[i]=='$' || str[i]=='/'){
+                str.insert(i,"/");
+                i=i+2;
+                continue;
+        }
+        i++;
+    }
+    str.append("$");
+    str.insert(0,"$");
+
+    return str ;
+}
+
+char get_parity_byte(string str )
+{
+    int i =0 ;
+    vector< std::bitset<8> > vec;
+    for (i=0 ; i<str.size(); i++){
+        vec.push_back(bitset<8>(str[i]));
+    }
+
+    bitset<8> parity(0);
+    for (i=0; i<vec.size();i++){
+        parity=(parity ^ vec[i]);
+    }
+//        vec.push_back(parity);
+    cout<<parity.to_ulong()<<endl;
+
+    return (char)parity.to_ulong();
+}
+
+string get_from_byte_stuffing(string  str )
+{
+
+    string recieved =str ;
+    recieved.pop_back();// removing the $ end of the string
+    recieved.erase(0,1);// removing the first char $
+    int i=0;
+   while(i< recieved.size()){
+       if(recieved[i]=='/'){
+           recieved.erase(i,1);
+       }
+       i++;
+   }
+   return recieved ;
+}
+
 void Node::SendFrame(bool WithError)
 {
-    string ErrorCode=Frames[S].substr(0,4);
-    string Message=Frames[S].substr(4);
+    string ErrorCode=ErrorCodes[S];
+    Frame_Base* Frame=new Frame_Base(Frames[S]);
 
     if(WithError==true && ErrorCode[1]=='1')//Loss
     {
@@ -35,9 +86,12 @@ void Node::SendFrame(bool WithError)
     if(WithError==true && ErrorCode[0]=='1')//Modification
     {
         //TODO: modify Message
+        string PayLoad=Frame->getPayload();
+        PayLoad[0]^=1;
+        Frame->setPayload(PayLoad);
     }
 
-    double ArrivalTime=par("PT").doubleValue()*(SF-S)+par("TD").doubleValue();
+    double ArrivalTime=par("PT").doubleValue()*(S-SF+1)+par("TD").doubleValue();
 
     if(WithError==true && ErrorCode[3]=='1')//Delay
     {
@@ -45,12 +99,12 @@ void Node::SendFrame(bool WithError)
     }
 
     //send first
-    sendDelayed(new cMessage(Message.c_str()),ArrivalTime,"out");
+    sendDelayed(Frame,ArrivalTime,"out");
     if(WithError==true && ErrorCode[2]=='1')//Duplication
     {
         ArrivalTime+=par("DD").doubleValue();
         //send second
-        sendDelayed(new cMessage(Message.c_str()),ArrivalTime,"out");
+        sendDelayed(Frame,ArrivalTime,"out");
     }
 }
 
@@ -74,21 +128,44 @@ void Node::SendWindow(bool WithError)
     }
 }
 
+void Node::CreateFrames()
+{
+    //open corresponding file
+    string FileName=string(getName())=="node0"?"input0.txt":"input1.txt";
+    ifstream input(FileName);
+
+    //read all frames from the file
+    string str;
+    int cnt=0;
+    while(getline(input,str))
+    {
+        string ErrorCode=str.substr(0,4);
+        string Message=str.substr(5);
+
+        ErrorCodes.push_back(ErrorCode);
+
+        Frame_Base* Frame=new Frame_Base(" ");
+        Message=byte_stuffing(Message);
+        Frame->setPayload(Message.c_str());
+        char ParityByte=get_parity_byte(Message);
+        Frame->setParity_byte(ParityByte);
+        Frame->setSeq_num(cnt);
+        Frame->setFrame_type(0);
+        Frames.push_back(Frame);
+        cnt=(cnt+1)%(par("WS").intValue()+1);
+    }
+}
+
 void Node::handleMessage(cMessage *msg)
 {
     if(string(msg->getName())=="Sender")//handle coordinator if sender
     {
         //mark as sender
         Sender=true;
-        //open corresponding file
-        string FileName=string(getName())=="node0"?"input0.txt":"input1.txt";
-        ifstream input(FileName);
         //set window from 0 to WS-1
         S=0,SF=0,SL=par("WS").intValue()-1;
-        //read all frames from the file
-        string str;
-        while(getline(input,str))
-            Frames.push_back(str);
+        //Create frames
+        CreateFrames();
         //TimerNumber keeps track of the timer for each frame in order to ignore Timeouts when we refresh the timers
         TimerNumber=vector<int>(Frames.size(),0);
         //schedule the starting message
@@ -142,32 +219,47 @@ void Node::handleMessage(cMessage *msg)
     }
     else if(Sender==false)//Send ACK from receiver
     {
-        //TODO: if error dedicted send NACK
+        EV<<simTime()<<" "<<msg->getName()<<endl;
+
+        //delay time for ack/nack is just TD
+        double ArrivalTime=par("PT").doubleValue()+par("TD").doubleValue();
+
+        Frame_Base* Frame=check_and_cast<Frame_Base*>(msg);
+        Frame_Base* SendMsg=new Frame_Base(" ");
+
         int rand=uniform(0,1)*100;
         //Loss probability
         if(rand<100-par("LP").intValue())
         {
-            //delay time for ack/nack is just TD
-            double ArrivalTime=par("PT").intValue()+par("TD").intValue();
-            //Expected Frame
-            if(R==atoi(msg->getName()))//seqnum
+            //if error dedicted send NACK
+            if(Frame->getParity_byte()!=get_parity_byte(Frame->getPayload()))
             {
+                SendMsg->setFrame_type(2);
+                SendMsg->setAck_num(R);
+                sendDelayed(SendMsg,ArrivalTime,"out");
+            }
+            else if(R==Frame->getSeq_num())
+            {
+                //Expected Frame
                 R=(R+1)%(par("WS").intValue()+1);
-                sendDelayed(new cMessage(("ACK "+to_string(R)).c_str()),ArrivalTime,"out");
+                SendMsg->setFrame_type(1);
+                SendMsg->setAck_num(R);
+                sendDelayed(SendMsg,ArrivalTime,"out");
             }
             else
             {
                 //Unexpected Frame
-                sendDelayed(new cMessage("NACK"),ArrivalTime,"out");
+                SendMsg->setFrame_type(2);
+                SendMsg->setAck_num(R);
+                sendDelayed(SendMsg,ArrivalTime,"out");
             }
         }
     }
 
-
-    if(Sender==false)
-    {
-        EV<<simTime()<<" "<<msg->getName()<<endl;
-    }
+//    if(Sender==false)
+//    {
+//        EV<<simTime()<<" "<<msg->getName()<<endl;
+//    }
 
 //    EV<<getName()<<" "<<par("PT").doubleValue()<<endl;
 //    EV<<Sender<<" "<<StartingTime<<endl;
