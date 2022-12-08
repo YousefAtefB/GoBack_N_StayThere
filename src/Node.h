@@ -21,7 +21,7 @@
 #include <string>
 #include <fstream>
 #include <bitset>
-#include <Frame_m.h>
+#include "Frame_m.h"
 using namespace std;
 
 using namespace omnetpp;
@@ -38,7 +38,7 @@ class Node : public cSimpleModule
     vector<int>TimerNumber;
     vector<Frame_Base*>Frames;
     vector<string>ErrorCodes;
-    void Node::CreateFrames();
+    virtual void CreateFrames();
     virtual void SendWindow(bool WithError);
     virtual void SendFrame(bool WithError);
     virtual void initialize();

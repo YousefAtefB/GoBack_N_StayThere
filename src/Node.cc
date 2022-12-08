@@ -76,7 +76,7 @@ string get_from_byte_stuffing(string  str )
 void Node::SendFrame(bool WithError)
 {
     string ErrorCode=ErrorCodes[S];
-    Frame_Base* Frame=new Frame_Base(Frames[S]);
+    Frame_Base* Frame=new Frame_Base(*Frames[S]);
 
     if(WithError==true && ErrorCode[1]=='1')//Loss
     {
@@ -88,7 +88,7 @@ void Node::SendFrame(bool WithError)
         //TODO: modify Message
         string PayLoad=Frame->getPayload();
         PayLoad[0]^=1;
-        Frame->setPayload(PayLoad);
+        Frame->setPayload(PayLoad.c_str());
     }
 
     double ArrivalTime=par("PT").doubleValue()*(S-SF+1)+par("TD").doubleValue();
@@ -104,7 +104,8 @@ void Node::SendFrame(bool WithError)
     {
         ArrivalTime+=par("DD").doubleValue();
         //send second
-        sendDelayed(Frame,ArrivalTime,"out");
+        Frame_Base* Frame2=new Frame_Base(*Frame);
+        sendDelayed(Frame2,ArrivalTime,"out");
     }
 }
 
@@ -204,23 +205,24 @@ void Node::handleMessage(cMessage *msg)
     }
     else if(Sender==true)//handle ACK & NACK from sender
     {
-        if(string(msg->getName())=="NACK")return;
-        //get seqnum of the ACK
-        int seqnum=atoi(string(msg->getName()).substr(4).c_str());
+        Frame_Base* Frame=check_and_cast<Frame_Base*>(msg);
+        //ignore NACK
+        if(Frame->getFrame_type()==2)return;
+
+        //get AckNum of the ACK
+        int AckNum=Frame->getAck_num();
         //shift SF & SL
         //0 1 2 3 4 5
         //0 1 2 3 4 5 0 1 2 3 4  5
         //0 1 2 3 4 5 6 7 8 9 10 11
         int WS=par("WS").intValue();
-        int shift=(seqnum-SF+WS+1)%(WS+1);
+        int shift=(AckNum-SF+WS+1)%(WS+1);
         SF+=shift;
         SL+=shift;
         SendWindow(true);
     }
     else if(Sender==false)//Send ACK from receiver
     {
-        EV<<simTime()<<" "<<msg->getName()<<endl;
-
         //delay time for ack/nack is just TD
         double ArrivalTime=par("PT").doubleValue()+par("TD").doubleValue();
 
@@ -254,6 +256,8 @@ void Node::handleMessage(cMessage *msg)
                 sendDelayed(SendMsg,ArrivalTime,"out");
             }
         }
+
+        EV<<simTime()<<" "<<Frame->getPayload()<<endl;
     }
 
 //    if(Sender==false)

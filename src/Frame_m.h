@@ -84,7 +84,7 @@ class Frame_Base : public ::omnetpp::cPacket
     Frame_Base(const Frame_Base& other);
 
     virtual ~Frame_Base();
-    virtual Frame_Base *dup() const override {throw omnetpp::cRuntimeError("You forgot to manually add a dup() function to class Frame");}
+    virtual Frame_Base *dup() const override {return new Frame_Base(*this);}
     virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
     virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
 
