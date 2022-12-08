@@ -54,6 +54,26 @@ void Node::SendFrame(bool WithError)
     }
 }
 
+void Node::SendWindow(bool WithError)
+{
+    //send the whole window after timeout
+    while(S<=SL&&S<Frames.size())
+    {
+        //we send the frame with error if its the start of the session
+        //or if it is a timer but not the frame that caused timing out
+        //I THINK THAT SF IS THE ONE THAT WILL ALWAYS CAUSE THE TIMEOUT
+        SendFrame(WithError);
+        //refresh the timer by increasing its number
+        TimerNumber[S]++;
+        //schedule a new timer and send the frame number and timer number
+        string str=to_string(S)+" "+to_string(TimerNumber[S]);
+        cMessage *TimeOutMsg=new cMessage(str.c_str());
+        scheduleAt(simTime()+par("TO").doubleValue(), TimeOutMsg);
+        //increase S
+        S++;
+    }
+}
+
 void Node::handleMessage(cMessage *msg)
 {
     if(string(msg->getName())=="Sender")//handle coordinator if sender
@@ -99,21 +119,11 @@ void Node::handleMessage(cMessage *msg)
         //reset S
         S=SF;
         //send the whole window after timeout
-        while(S<=SL&&S<Frames.size())
-        {
-            //we send the frame with error if its the start of the session
-            //or if it is a timer but not the frame that caused timing out
-            //I THINK THAT SF IS THE ONE THAT WILL ALWAYS CAUSE THE TIMEOUT
-            SendFrame(StartSession==true || S!=SF);
-            //refresh the timer by increasing its number
-            TimerNumber[S]++;
-            //schedule a new timer and send the frame number and timer number
-            string str=to_string(S)+" "+to_string(TimerNumber[S]);
-            cMessage *TimeOutMsg=new cMessage(str.c_str());
-            scheduleAt(simTime()+par("TO").doubleValue(), TimeOutMsg);
-            //increase S
-            S++;
-        }
+        bool WithError=StartSession==true || S!=SF;
+        //we send the frame with error if its the start of the session
+        //or if it is a timer but not the frame that caused timing out
+        //I THINK THAT SF IS THE ONE THAT WILL ALWAYS CAUSE THE TIMEOUT
+        SendWindow(WithError);
     }
     else if(Sender==true)//handle ACK & NACK from sender
     {
@@ -128,6 +138,7 @@ void Node::handleMessage(cMessage *msg)
         int shift=(seqnum-SF+WS+1)%(WS+1);
         SF+=shift;
         SL+=shift;
+        SendWindow(true);
     }
     else if(Sender==false)//Send ACK from receiver
     {

@@ -35,6 +35,7 @@ class Node : public cSimpleModule
     int R;
     vector<int>TimerNumber;
     vector<string>Frames;
+    virtual void SendWindow(bool WithError);
     virtual void SendFrame(bool WithError);
     virtual void initialize();
     virtual void handleMessage(cMessage *msg);
