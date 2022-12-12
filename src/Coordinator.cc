@@ -23,6 +23,7 @@ void Coordinator::initialize()
 {
     //to delete the log
     ofstream temp("output.txt");
+    ofstream temp2("output2.txt");
 
 
     // TODO - Generated method body

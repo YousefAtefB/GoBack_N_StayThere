@@ -53,7 +53,7 @@ char get_parity_byte(string str )
         parity=(parity ^ vec[i]);
     }
 //        vec.push_back(parity);
-    cout<<parity.to_ulong()<<endl;
+//    cout<<parity.to_ulong()<<endl;
 
     return (char)parity.to_ulong();
 }
@@ -76,21 +76,16 @@ string get_from_byte_stuffing(string  str )
 
 void Node::SendFrame(bool WithError)
 {
-    //-------------LOG
-//    ofstream output("output.txt",ios_base::app);
-//    output<<"At time "<<simTime()<<
-    //-------------LOG
-
-
     string ErrorCode=ErrorCodes[S];
     Frame_Base* Frame=new Frame_Base(*Frames[S]);
 
-    if(WithError==true && ErrorCode[1]=='1')//Loss
-    {
-        return;
-    }
+    //-------------LOG
+    ofstream output("output.txt",ios_base::app);
+    output<<"At time ["<<simTime()-par("PT").doubleValue()<<"], Node["<<(string(getName())=="node0"?0:1)<<"]";
+    output<<", Introducing channel error with code=["<<ErrorCode<<"]."<<endl;
+    //-------------LOG
 
-    if(WithError==true && ErrorCode[0]=='1')//Modification
+    if(WithError==true&&ErrorCode[0]=='1')//Modification
     {
         //TODO: modify Message
         string PayLoad=Frame->getPayload();
@@ -98,21 +93,44 @@ void Node::SendFrame(bool WithError)
         Frame->setPayload(PayLoad.c_str());
     }
 
-    double ArrivalTime=par("PT").doubleValue()*(S-SF+1)+par("TD").doubleValue();
+    double ArrivalTime=par("TD").doubleValue();
 
-    if(WithError==true && ErrorCode[3]=='1')//Delay
+    if(WithError==true&&ErrorCode[3]=='1')//Delay
     {
         ArrivalTime+=par("ED").doubleValue();
     }
 
     //send first
-    sendDelayed(Frame,ArrivalTime,"out");
-    if(WithError==true && ErrorCode[2]=='1')//Duplication
+    if(WithError==false||ErrorCode[1]!='1')//No Loss in order to send
+    {
+        sendDelayed(Frame,ArrivalTime,"out");
+    }
+
+    string ParityByte;
+    for(int i=7;i>=0;i--)
+        ParityByte+=((Frame->getParity_byte()>>i)&1)?"1":"0";
+
+    //-------------LOG
+    output<<"At time ["<<simTime()<<"], Node["<<(string(getName())=="node0"?0:1)<<"]";
+    output<<" [sent] frame with seq_num=["<<Frame->getSeq_num()<<"] "<<"and payload=["<<Frame->getPayload()<<"] and trailer=[";
+    output<<ParityByte<<"] , Modified ["<<(WithError==true&&ErrorCode[0]=='1'?1:-1)<<"] ,Lost ["<<(WithError==true&&ErrorCode[1]=='1'?"YES":"NO")<<"]";
+    output<<", Duplicate ["<<(WithError==true&&ErrorCode[2]=='1'?1:0)<<"], Delay["<<(WithError==true&&ErrorCode[3]=='1'?par("ED").doubleValue():0)<<"]."<<endl;
+    //-------------LOG
+
+    if(WithError==true&&ErrorCode[2]=='1')//Duplication
     {
         ArrivalTime+=par("DD").doubleValue();
         //send second
         Frame_Base* Frame2=new Frame_Base(*Frame);
-        sendDelayed(Frame2,ArrivalTime,"out");
+        if(ErrorCode[1]!='1')//No Loss in order to send
+            sendDelayed(Frame2,ArrivalTime,"out");
+
+        //-------------LOG
+        output<<"At time ["<<simTime()+par("DD").doubleValue()<<"], Node["<<(string(getName())=="node0"?0:1)<<"]";
+        output<<" [sent] frame with seq_num=["<<Frame->getSeq_num()<<"] "<<"and payload=["<<Frame->getPayload()<<"] and trailer=[";
+        output<<ParityByte<<"] , Modified ["<<(ErrorCode[0]=='1'?1:-1)<<"] ,Lost ["<<(ErrorCode[1]=='1'?"YES":"NO")<<"]";
+        output<<", Duplicate ["<<2<<"], Delay["<<(ErrorCode[3]=='1'?par("ED").doubleValue():0)<<"]."<<endl;
+        //-------------LOG
     }
 }
 
@@ -160,13 +178,8 @@ void Node::CreateFrames()
         Frame->setSeq_num(cnt);
         Frame->setFrame_type(0);
         Frames.push_back(Frame);
-        cnt=(cnt+1)%(par("WS").intValue()+1);
+        cnt=(cnt+1)%(par("WS").intValue());
     }
-}
-
-void SenderLog()
-{
-
 }
 
 void Node::handleMessage(cMessage *msg)
@@ -191,47 +204,112 @@ void Node::handleMessage(cMessage *msg)
         //set expected frame to 0
         R=0;
     }
-    else if(msg->isSelfMessage())//send another message from sender after Starting time or TIMEOUT
+    else if(Sender==true)
     {
-        //check if staring session message
-        bool StartSession=string(msg->getName())=="Start Session";
-        //if it is a schedule for a timer we need to check that the timer is not refreshed
-        //using TimerNumber and the frame that timedout is not acknowledged
-        if(StartSession==false)
+        if(msg->isSelfMessage())//send another message from sender after Starting time or TIMEOUT
         {
-            //frame that caused timeout
-            stringstream ss(msg->getName());
-            int Frame,Timer;
-            ss>>Frame>>Timer;
-            //ignore timer if frame already acknowledged or timer is old (refreshed)
-            if(Frame<SF||Timer!=TimerNumber[Frame])return;
-        }
-        //reset S
-        S=SF;
-        //send the whole window after timeout
-        bool WithError=StartSession==true || S!=SF;
-        //we send the frame with error if its the start of the session
-        //or if it is a timer but not the frame that caused timing out
-        //I THINK THAT SF IS THE ONE THAT WILL ALWAYS CAUSE THE TIMEOUT
-        SendWindow(WithError);
-    }
-    else if(Sender==true)//handle ACK & NACK from sender
-    {
-        Frame_Base* Frame=check_and_cast<Frame_Base*>(msg);
-        //ignore NACK
-        if(Frame->getFrame_type()==2)return;
+            if(string(msg->getName())=="Start Session")// start of session begin to send the first window
+            {
+                cMessage* Msg=new cMessage("Send Frame");
+                //kind means with error or not
+                Msg->setKind(1);
+                //schedule to send first frame
+                scheduleAt(simTime()+par("PT").doubleValue(),Msg);
+            }
+            else if(string(msg->getName())=="Send Frame")//it is time to send a frame after processing time
+            {
+                EV<<"before sent S SF SL: "<<S<<" "<<SF<<" "<<SL<<endl;
+                //not sure we need this line but runtime without it
+                if(S>=Frames.size())return;
+                //we send the frame with error if its the start of the session
+                //or if it is a timer but not the frame that caused timing out
+                //I THINK THAT SF IS THE ONE THAT WILL ALWAYS CAUSE THE TIMEOUT
+                // kind = 1 means send with error
+                EV<<"before send frame:"<<simTime()<<"\n";
+                SendFrame(msg->getKind()==1);
+                //schedule a new timer and send the frame number and timer number
+                string str=to_string(S)+" "+to_string(TimerNumber[S]);
+                cMessage *TimeOutMsg=new cMessage(str.c_str());
+                scheduleAt(simTime()+par("TO").doubleValue(), TimeOutMsg);
+                //increase S
+                S++;
+                //if the window is not finished schedule for next frame
+                if(S<=SL)
+                {
+                    cMessage* Msg=new cMessage("Send Frame");
+                    //send with error, kind means with error or not
+                    Msg->setKind(1);
+                    //schedule to send first frame
+                    scheduleAt(simTime()+par("PT").doubleValue(),Msg);
+                }
+            }
+            else //Time Out send the window again but first frame without errors
+            {
+                //if it is a schedule for a timer we need to check that the timer is not refreshed
+                //using TimerNumber and the frame that timedout is not acknowledged
 
-        //get AckNum of the ACK
-        int AckNum=Frame->getAck_num();
-        //shift SF & SL
-        //0 1 2 3 4 5
-        //0 1 2 3 4 5 0 1 2 3 4  5
-        //0 1 2 3 4 5 6 7 8 9 10 11
-        int WS=par("WS").intValue();
-        int shift=(AckNum-SF+WS+1)%(WS+1);
-        SF+=shift;
-        SL+=shift;
-        SendWindow(true);
+                //frame that caused timeout
+                stringstream ss(msg->getName());
+                int Frame,Timer;
+                ss>>Frame>>Timer;
+                //ignore timer if frame already acknowledged or timer is old (refreshed)
+                if(Frame<SF||Timer!=TimerNumber[Frame])return;
+                //reset S
+                S=SF;
+                //send the whole window after timeout
+                //we send the frame with error if its the start of the session
+                //or if it is a timer but not the frame that caused timing out
+                //I THINK THAT SF IS THE ONE THAT WILL ALWAYS CAUSE THE TIMEOUT
+
+                //schedule for first frame in the window without errors
+                cMessage* Msg=new cMessage("Send Frame");
+                //send without error, kind means with error or not
+                Msg->setKind(0);
+                //schedule to send first frame
+                scheduleAt(simTime()+par("PT").doubleValue(),Msg);
+
+                //refresh the timer by increasing its number
+                for(int i=SF;i<=SL&&i<Frames.size();i++)
+                    TimerNumber[i]++;
+
+                //-------------LOG
+                ofstream output("output.txt",ios_base::app);
+                output<<"Time out event at time ["<<simTime()<<"], "<<"at Node["<<(string(getName())=="node0"?0:1);
+                output<<"] for frame with seq_num=["<<Frames[Frame]->getSeq_num()<<"]"<<endl;
+                //-------------LOG
+            }
+        }
+        else//handle ACK & NACK from sender
+        {
+            Frame_Base* Frame=check_and_cast<Frame_Base*>(msg);
+            //ignore NACK
+            if(Frame->getFrame_type()==2)return;
+
+            //get AckNum of the ACK
+            int AckNum=Frame->getAck_num();
+
+            //the orignal window is finished we need to schedule for the new ack frames
+            if(S>SL)
+            {
+                cMessage* Msg=new cMessage("Send Frame");
+                //send with error, kind means with error or not
+                Msg->setKind(1);
+                //schedule to send first frame
+                scheduleAt(simTime()+par("PT").doubleValue(),Msg);
+            }
+            //0 1 2 3 4 5
+
+            //shift SF & SL
+            //0 1 2 3 4 5
+            //0 1 2 3 4 5 0 1 2 3 4  5 0 1 2
+            //0 1 2 3 4 5 6 7 8 9 10 11
+            int WS=par("WS").intValue();
+            int shift=(AckNum-(SF%WS)+WS)%(WS);
+            SF+=shift;
+            SL+=shift;
+
+            EV<<"after ack S SF SL: "<<S<<" "<<SF<<" "<<SL<<endl;
+        }
     }
     else if(Sender==false)//Send ACK from receiver
     {
@@ -255,28 +333,30 @@ void Node::handleMessage(cMessage *msg)
             else if(R==Frame->getSeq_num())
             {
                 //Expected Frame
-                R=(R+1)%(par("WS").intValue()+1);
+                R=(R+1)%(par("WS").intValue());
                 SendMsg->setFrame_type(1);
                 SendMsg->setAck_num(R);
+                EV<<"before send ack:"<<simTime()+par("PT").doubleValue()<<"\n";
                 sendDelayed(SendMsg,ArrivalTime,"out");
             }
-            else
-            {
-                //Unexpected Frame
-                SendMsg->setFrame_type(2);
-                SendMsg->setAck_num(R);
-                sendDelayed(SendMsg,ArrivalTime,"out");
-            }
+//            else
+//            {
+//                //Unexpected Frame
+//                SendMsg->setFrame_type(2);
+//                SendMsg->setAck_num(R);
+//                sendDelayed(SendMsg,ArrivalTime,"out");
+//            }
         }
+
+        //-------------LOG
+        ofstream output("output2.txt",ios_base::app);
+        output<<"At time["<<simTime()+par("PT").doubleValue()<<"], Node["<<(string(getName())=="node0"?0:1);
+        output<<"] Sending ["<<(SendMsg->getFrame_type()==1?"ACK":"NACK")<<"] with number ["<<SendMsg->getAck_num()<<"] , loss [";
+        output<<(rand<100-par("LP").intValue()?"NO":"YES")<<"]"<<endl;
+        //-------------LOG
+
 
         EV<<simTime()<<" "<<Frame->getPayload()<<endl;
     }
 
-//    if(Sender==false)
-//    {
-//        EV<<simTime()<<" "<<msg->getName()<<endl;
-//    }
-
-//    EV<<getName()<<" "<<par("PT").doubleValue()<<endl;
-//    EV<<Sender<<" "<<StartingTime<<endl;
 }
