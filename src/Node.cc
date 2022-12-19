@@ -79,11 +79,15 @@ void Node::SendFrame(bool WithError)
     string ErrorCode=ErrorCodes[S];
     Frame_Base* Frame=new Frame_Base(*Frames[S]);
 
-    //-------------LOG
     ofstream output("output.txt",ios_base::app);
-    output<<"At time ["<<simTime()-par("PT").doubleValue()<<"], Node["<<(string(getName())=="node0"?0:1)<<"]";
-    output<<", Introducing channel error with code=["<<ErrorCode<<"]."<<endl;
-    //-------------LOG
+    if(SentBefore[S]==false)// only output this to the log for the first time to send the frame
+    {
+        SentBefore[S]=true;
+        //-------------LOG
+        output<<"At time ["<<simTime()-par("PT").doubleValue()<<"], Node["<<(string(getName())=="node0"?0:1)<<"]";
+        output<<", Introducing channel error with code=["<<ErrorCode<<"]."<<endl;
+        //-------------LOG
+    }
 
     if(WithError==true&&ErrorCode[0]=='1')//Modification
     {
@@ -194,6 +198,8 @@ void Node::handleMessage(cMessage *msg)
         CreateFrames();
         //TimerNumber keeps track of the timer for each frame in order to ignore Timeouts when we refresh the timers
         TimerNumber=vector<int>(Frames.size(),0);
+        //SentBefore keeps track of the frame that have been sent before used to output the log file
+        SentBefore=vector<bool>(Frames.size(),false);
         //schedule the starting message
         scheduleAt(msg->getTimestamp(),new cMessage("Start Session"));
     }
@@ -318,6 +324,9 @@ void Node::handleMessage(cMessage *msg)
 
         Frame_Base* Frame=check_and_cast<Frame_Base*>(msg);
         Frame_Base* SendMsg=new Frame_Base(" ");
+
+        if(R!=Frame->getSeq_num()) // if out of order frame just ignore it
+            return;
 
         int rand=uniform(0,1)*100;
         //Loss probability

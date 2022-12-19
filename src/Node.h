@@ -36,6 +36,7 @@ class Node : public cSimpleModule
     int SF,S,SL;
     int R;
     vector<int>TimerNumber;
+    vector<bool>SentBefore;
     vector<Frame_Base*>Frames;
     vector<string>ErrorCodes;
     virtual void CreateFrames();
